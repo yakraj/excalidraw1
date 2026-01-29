@@ -17,6 +17,7 @@ import { OverwriteConfirmDialog } from "@excalidraw/excalidraw/components/Overwr
 import { openConfirmModal } from "@excalidraw/excalidraw/components/OverwriteConfirm/OverwriteConfirmState";
 import { ShareableLinkDialog } from "@excalidraw/excalidraw/components/ShareableLinkDialog";
 import Trans from "@excalidraw/excalidraw/components/Trans";
+import { NormalizedZoomValue } from "@excalidraw/excalidraw/types";
 import {
   APP_NAME,
   EVENT,
@@ -378,6 +379,13 @@ const ExcalidrawWrapper = () => {
 
   const editorInterface = useEditorInterface();
 
+  const handleContextMenu = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.altKey || isAdjustingBrushRef.current) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  };
+
   // initial state
   // ---------------------------------------------------------------------------
 
@@ -408,6 +416,180 @@ const ExcalidrawWrapper = () => {
     return isCollaborationLink(window.location.href);
   });
   const collabError = useAtomValue(collabErrorIndicatorAtom);
+
+  const isSpacePressedRef = useRef(false);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.code === "Space" && !event.repeat) {
+        isSpacePressedRef.current = true;
+      }
+    };
+    const handleKeyUp = (event: KeyboardEvent) => {
+      if (event.code === "Space") {
+        isSpacePressedRef.current = false;
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown, true);
+    window.addEventListener("keyup", handleKeyUp, true);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown, true);
+      window.removeEventListener("keyup", handleKeyUp, true);
+    };
+  }, []);
+
+  const isAdjustingBrushRef = useRef(false);
+
+  const [brushPreview, setBrushPreview] = useState<{
+    visible: boolean;
+    x: number;
+    y: number;
+    size: number;
+    opacity: number;
+  }>({
+    visible: false,
+    x: 0,
+    y: 0,
+    size: 10,
+    opacity: 100,
+  });
+
+  const handlePointerDownCapture = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.ctrlKey && isSpacePressedRef.current && excalidrawAPI) {
+      if (e.button !== 0) {
+        return;
+      }
+      e.preventDefault();
+      e.stopPropagation();
+
+      const startX = e.clientX;
+      const startY = e.clientY;
+      const startAppState = excalidrawAPI.getAppState();
+      const startZoom = startAppState.zoom.value;
+      const startScrollX = startAppState.scrollX;
+      const startScrollY = startAppState.scrollY;
+
+      const onPointerMove = (moveEvent: PointerEvent) => {
+        const deltaX = moveEvent.clientX - startX;
+        const ZOOM_SENSITIVITY = 0.005;
+        const newZoomValue = startZoom * (1 + deltaX * ZOOM_SENSITIVITY);
+        const safeZoom = Math.min(Math.max(newZoomValue, 0.1), 30);
+
+        const worldX = startX / startZoom - startScrollX;
+        const worldY = startY / startZoom - startScrollY;
+
+        const newScrollX = startX / safeZoom - worldX;
+        const newScrollY = startY / safeZoom - worldY;
+
+        excalidrawAPI.updateScene({
+          appState: {
+            zoom: { value: safeZoom as NormalizedZoomValue },
+            scrollX: newScrollX,
+            scrollY: newScrollY,
+          },
+        });
+      };
+
+      const onPointerUp = () => {
+        window.removeEventListener("pointermove", onPointerMove);
+        window.removeEventListener("pointerup", onPointerUp);
+      };
+
+      window.addEventListener("pointermove", onPointerMove);
+      window.addEventListener("pointerup", onPointerUp);
+      return;
+    }
+
+    if (e.altKey && excalidrawAPI && e.button === 2) {
+      const appState = excalidrawAPI.getAppState();
+      if (appState.activeTool.type === "freedraw") {
+        e.preventDefault();
+        e.stopPropagation();
+
+        isAdjustingBrushRef.current = true;
+
+        const startX = e.clientX;
+        const startY = e.clientY;
+        const startStrokeWidth = appState.currentItemStrokeWidth;
+        const startOpacity = appState.currentItemOpacity;
+
+        setBrushPreview({
+          visible: true,
+          x: startX,
+          y: startY,
+          size: startStrokeWidth,
+          opacity: startOpacity,
+        });
+
+        let axis: "horizontal" | "vertical" | null = null;
+        let pSize = startStrokeWidth;
+        let pOpacity = startOpacity;
+
+        const onPointerMove = (moveEvent: PointerEvent) => {
+          const deltaX = moveEvent.clientX - startX;
+          const deltaY = moveEvent.clientY - startY;
+
+          // Update position of the overlay to follow the cursor (or stay centered? user said "center pointer where started" for zoom, for brush usually it follows or stays centered on start?
+          // Re-reading: "pointer where started" was for Zoom. For brush in PS it usually stays put or the preview appears at cursor.
+          // The attached image shows the cursor inside the circle.
+          // Let's make the preview follow the cursor, or center on startX/Y.
+          // In PS, the preview stays at the initial click location or follows cursor?
+          // Actually in PS: Alt+RightClick+Drag: The red overlay appears. As you drag, the cursor hides or moves. The overlay changes size.
+          // Let's update x/y to current cursor to be safe.
+          const overlayX = moveEvent.clientX; // unused if we use fixed start. Let's use startX/Y for stability or allow moving?
+          // If we drag to change value, moving the circle might be annoying if we are trying to be precise.
+          // However, Usually you want to see the brush size *at the point you clicked*.
+          // Let's keep x/y static at startX/startY or update it. I'll update it to be at startX/startY to match the 'control' feel, or update it if the user wants to see it elsewhere.
+          // Actually, let's just stick to startX/startY for the center of the brush preview, as dragging is for *value change*, not positioning.
+
+          if (!axis) {
+            if (Math.abs(deltaX) > Math.abs(deltaY)) {
+              if (Math.abs(deltaX) > 5) axis = "horizontal";
+            } else {
+              if (Math.abs(deltaY) > 5) axis = "vertical";
+            }
+          }
+
+          if (axis === "horizontal") {
+            const scale = 0.1;
+            const newWidth = Math.max(0.1, startStrokeWidth + deltaX * scale);
+            excalidrawAPI.updateScene({
+              appState: { currentItemStrokeWidth: newWidth },
+            });
+            pSize = newWidth;
+          } else if (axis === "vertical") {
+            const scale = 0.5;
+            const newOpacity = Math.max(
+              0,
+              Math.min(100, startOpacity - deltaY * scale),
+            );
+            excalidrawAPI.updateScene({
+              appState: { currentItemOpacity: newOpacity },
+            });
+            pOpacity = newOpacity;
+          }
+
+          setBrushPreview((prev) => ({
+            ...prev,
+            size: pSize,
+            opacity: pOpacity,
+          }));
+        };
+
+        const onPointerUp = () => {
+          setBrushPreview((prev) => ({ ...prev, visible: false }));
+          setTimeout(() => {
+            isAdjustingBrushRef.current = false;
+          }, 100);
+          window.removeEventListener("pointermove", onPointerMove);
+          window.removeEventListener("pointerup", onPointerUp);
+        };
+
+        window.addEventListener("pointermove", onPointerMove);
+        window.addEventListener("pointerup", onPointerUp);
+      }
+    }
+  };
 
   useHandleLibrary({
     excalidrawAPI,
@@ -834,10 +1016,102 @@ const ExcalidrawWrapper = () => {
   return (
     <div
       style={{ height: "100%" }}
+      onPointerDownCapture={handlePointerDownCapture}
+      onContextMenuCapture={handleContextMenu}
       className={clsx("excalidraw-app", {
         "is-collaborating": isCollaborating,
       })}
     >
+      {brushPreview.visible && excalidrawAPI && (
+        <div
+          style={{
+            position: "fixed",
+            left: 0,
+            top: 0,
+            width: "100%",
+            height: "100%",
+            zIndex: 999999,
+            pointerEvents: "none",
+          }}
+        >
+          <div
+            style={{
+              position: "absolute",
+              left: brushPreview.x,
+              top: brushPreview.y,
+              transform: "translate(-50%, -50%)",
+              width: brushPreview.size * excalidrawAPI.getAppState().zoom.value * 3,
+              height:
+                brushPreview.size * excalidrawAPI.getAppState().zoom.value * 3,
+              borderRadius: "50%",
+              backgroundColor: "red",
+              opacity: brushPreview.opacity / 100,
+            }}
+          />
+          <div
+            style={{
+              position: "absolute",
+              left: brushPreview.x,
+              top: brushPreview.y,
+              transform: "translate(-50%, -50%)",
+              width: "20px",
+              height: "20px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <div
+              style={{
+                width: 10,
+                height: 1,
+                background: "rgba(255,255,255,0.8)",
+                position: "absolute",
+              }}
+            ></div>
+            <div
+              style={{
+                width: 1,
+                height: 10,
+                background: "rgba(255,255,255,0.8)",
+                position: "absolute",
+              }}
+            ></div>
+          </div>
+          <div
+            style={{
+              position: "absolute",
+              left: brushPreview.x + 40,
+              top: brushPreview.y,
+              transform: "translateY(-50%)",
+              background: "rgba(0,0,0,0.6)",
+              color: "white",
+              padding: "2px 4px",
+              borderRadius: "4px",
+              fontSize: "12px",
+              fontFamily: "sans-serif",
+            }}
+          >
+            Opacity: {Math.round(brushPreview.opacity)}%
+          </div>
+          <div
+            style={{
+              position: "absolute",
+              left: brushPreview.x - 40,
+              top: brushPreview.y,
+              transform: "translate(-100%, -50%)",
+              background: "rgba(0,0,0,0.6)",
+              color: "white",
+              padding: "2px 4px",
+              borderRadius: "4px",
+              fontSize: "12px",
+              fontFamily: "sans-serif",
+            }}
+          >
+            Size: {Math.round(brushPreview.size)}
+          </div>
+        </div>
+      )}
       <Excalidraw
         excalidrawAPI={excalidrawRefCallback}
         onChange={onChange}

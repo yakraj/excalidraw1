@@ -1,4 +1,7 @@
 {
+  "buildCommand": "yarn build",
+  "outputDirectory": "excalidraw-app/build",
+  "framework": "vite",
   "public": true,
   "headers": [
     {
