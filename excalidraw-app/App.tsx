@@ -211,6 +211,13 @@ const shareableLinkConfirmDialog = {
   color: "danger",
 } as const;
 
+const newProjectConfirmDialog = {
+  title: "New project",
+  description: "This will clear the canvas. Unsaved changes will be lost.",
+  actionLabel: "Create new project",
+  color: "danger",
+} as const;
+
 const initializeScene = async (opts: {
   collabAPI: CollabAPI | null;
   excalidrawAPI: ExcalidrawImperativeAPI;
@@ -950,6 +957,37 @@ const ExcalidrawWrapper = () => {
 
   const localStorageQuotaExceeded = useAtomValue(localStorageQuotaExceededAtom);
 
+  const onNewProject = useCallback(async () => {
+    if (!excalidrawAPI) {
+      return;
+    }
+    const elements = excalidrawAPI.getSceneElements();
+    if (elements.length > 0) {
+      const confirmed = await openConfirmModal(newProjectConfirmDialog);
+      if (confirmed) {
+        excalidrawAPI.resetScene();
+      }
+    } else {
+      excalidrawAPI.resetScene();
+    }
+  }, [excalidrawAPI]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (
+        (event.ctrlKey || event.metaKey) &&
+        (event.key === "n" || event.code === "KeyN")
+      ) {
+        event.preventDefault();
+        onNewProject();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown, { capture: true });
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown, { capture: true });
+    };
+  }, [onNewProject]);
+
   const onCollabDialogOpen = useCallback(
     () => setShareDialogState({ isOpen: true, type: "collaborationOnly" }),
     [setShareDialogState],
@@ -1040,7 +1078,8 @@ const ExcalidrawWrapper = () => {
               left: brushPreview.x,
               top: brushPreview.y,
               transform: "translate(-50%, -50%)",
-              width: brushPreview.size * excalidrawAPI.getAppState().zoom.value * 3,
+              width:
+                brushPreview.size * excalidrawAPI.getAppState().zoom.value * 3,
               height:
                 brushPreview.size * excalidrawAPI.getAppState().zoom.value * 3,
               borderRadius: "50%",
@@ -1188,6 +1227,7 @@ const ExcalidrawWrapper = () => {
         }}
       >
         <AppMainMenu
+          onNewProject={onNewProject}
           onCollabDialogOpen={onCollabDialogOpen}
           isCollaborating={isCollaborating}
           isCollabEnabled={!isCollabDisabled}

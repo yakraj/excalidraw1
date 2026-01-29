@@ -86,6 +86,8 @@ import {
 
 import { Island } from "./Island";
 
+import type { ActionManager } from "../actions/manager";
+
 import type {
   AppClassProperties,
   AppProps,
@@ -93,7 +95,6 @@ import type {
   Zoom,
   AppState,
 } from "../types";
-import type { ActionManager } from "../actions/manager";
 
 // Common CSS class combinations
 const PROPERTIES_CLASSES = clsx([
@@ -1043,11 +1044,13 @@ export const ShapesSwitcher = ({
   setAppState,
   app,
   UIOptions,
+  actionManager,
 }: {
   activeTool: UIAppState["activeTool"];
   setAppState: React.Component<any, AppState>["setState"];
   app: AppClassProperties;
   UIOptions: AppProps["UIOptions"];
+  actionManager: ActionManager;
 }) => {
   const [isExtraToolsMenuOpen, setIsExtraToolsMenuOpen] = useState(false);
   const stylesPanelMode = useStylesPanelMode();
