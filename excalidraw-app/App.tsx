@@ -32,6 +32,7 @@ import {
   isRunningInIframe,
   isDevEnv,
 } from "@excalidraw/common";
+import { STORAGE_KEYS } from "./app_constants";
 import polyfill from "@excalidraw/excalidraw/polyfill";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { loadFromBlob } from "@excalidraw/excalidraw/data/blob";
@@ -965,9 +966,13 @@ const ExcalidrawWrapper = () => {
     if (elements.length > 0) {
       const confirmed = await openConfirmModal(newProjectConfirmDialog);
       if (confirmed) {
+        localStorage.removeItem(STORAGE_KEYS.LOCAL_STORAGE_ELEMENTS);
+        localStorage.removeItem(STORAGE_KEYS.LOCAL_STORAGE_APP_STATE);
         excalidrawAPI.resetScene();
       }
     } else {
+      localStorage.removeItem(STORAGE_KEYS.LOCAL_STORAGE_ELEMENTS);
+      localStorage.removeItem(STORAGE_KEYS.LOCAL_STORAGE_APP_STATE);
       excalidrawAPI.resetScene();
     }
   }, [excalidrawAPI]);
