@@ -32,7 +32,6 @@ import {
   isRunningInIframe,
   isDevEnv,
 } from "@excalidraw/common";
-import { STORAGE_KEYS } from "./app_constants";
 import polyfill from "@excalidraw/excalidraw/polyfill";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { loadFromBlob } from "@excalidraw/excalidraw/data/blob";
