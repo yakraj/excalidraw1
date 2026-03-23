@@ -87,7 +87,24 @@ if (isDevEnv()) {
 }
 
 let currentLang: Language = defaultLang;
-let currentLangData = {};
+let currentLangData: Record<string, any> = fallbackLangData;
+const localeModules = import.meta.glob<{ default: typeof fallbackLangData }>(
+  "./locales/*.json",
+);
+
+const loadLocaleData = async (code: string) => {
+  if (code === defaultLang.code) {
+    return fallbackLangData;
+  }
+
+  const loader = localeModules[`./locales/${code}.json`];
+  if (!loader) {
+    throw new Error(`Unsupported language: ${code}`);
+  }
+
+  const module = await loader();
+  return (module as { default?: typeof fallbackLangData }).default ?? module;
+};
 
 export const setLanguage = async (lang: Language) => {
   currentLang = lang;
@@ -98,7 +115,7 @@ export const setLanguage = async (lang: Language) => {
     currentLangData = {};
   } else {
     try {
-      currentLangData = await import(`./locales/${currentLang.code}.json`);
+      currentLangData = await loadLocaleData(currentLang.code);
     } catch (error: any) {
       console.error(`Failed to load language ${lang.code}:`, error.message);
       currentLangData = fallbackLangData;

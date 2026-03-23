@@ -60,6 +60,9 @@
     "build:version": "yarn --cwd ./excalidraw-app build:version",
     "build": "yarn --cwd ./excalidraw-app build",
     "build:preview": "yarn --cwd ./excalidraw-app build:preview",
+    "cloud:server": "node ./cloud-backend/server.mjs",
+    "cloud:prisma:generate": "node ./cloud-backend/scripts/prisma-cli.mjs generate",
+    "cloud:prisma:migrate": "node ./cloud-backend/scripts/prisma-cli.mjs migrate dev",
     "start": "yarn --cwd ./excalidraw-app start",
     "start:production": "yarn --cwd ./excalidraw-app start:production",
     "start:example": "yarn build:packages && yarn --cwd ./examples/with-script-in-browser start",
@@ -90,5 +93,9 @@
   },
   "resolutions": {
     "strip-ansi": "6.0.1"
+  },
+  "dependencies": {
+    "@prisma/client": "6.15.0",
+    "prisma": "6.15.0"
   }
 }

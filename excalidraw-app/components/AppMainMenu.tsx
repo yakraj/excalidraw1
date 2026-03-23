@@ -21,6 +21,7 @@ export const AppMainMenu: React.FC<{
   onNewProject: () => void;
   isCollaborating: boolean;
   isCollabEnabled: boolean;
+  isCloudProject: boolean;
   theme: Theme | "system";
   setTheme: (theme: Theme | "system") => void;
   refresh: () => void;
@@ -34,8 +35,17 @@ export const AppMainMenu: React.FC<{
       >
         New project
       </MainMenu.Item>
+      <MainMenu.Item
+        icon={ExcalLogo}
+        onClick={() => {
+          window.history.pushState({}, "", "/dashboard");
+          window.dispatchEvent(new Event("excalidraw-cloud:navigate"));
+        }}
+      >
+        Cloud dashboard
+      </MainMenu.Item>
       <MainMenu.DefaultItems.LoadScene />
-      <MainMenu.DefaultItems.SaveToActiveFile />
+      {!props.isCloudProject && <MainMenu.DefaultItems.SaveToActiveFile />}
       <MainMenu.DefaultItems.Export />
       <MainMenu.DefaultItems.SaveAsImage />
       {props.isCollabEnabled && (

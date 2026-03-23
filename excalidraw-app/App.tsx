@@ -140,13 +140,22 @@ import DebugCanvas, {
 } from "./components/DebugCanvas";
 import { AIComponents } from "./components/AI";
 import { ExcalidrawPlusIframeExport } from "./ExcalidrawPlusIframeExport";
+import { CloudAuthScreen } from "./cloud/CloudAuthScreen";
+import { CloudDashboard } from "./cloud/CloudDashboard";
+import { SaveBadge } from "./cloud/SaveBadge";
+import { createProject } from "./cloud/api";
+import { navigateToPath, useAppRoute } from "./cloud/routes";
+import { useCloudAuthSession } from "./cloud/useCloudAuthSession";
+import { useCloudProjectSync } from "./cloud/useCloudProjectSync";
 
 import "./index.scss";
+import "./cloud/cloud.scss";
 
 import { ExcalidrawPlusPromoBanner } from "./components/ExcalidrawPlusPromoBanner";
 import { AppSidebar } from "./components/AppSidebar";
 
 import type { CollabAPI } from "./collab/Collab";
+import type { AppRoute } from "./cloud/routes";
 
 polyfill();
 
@@ -376,9 +385,12 @@ const initializeScene = async (opts: {
   return { scene: null, isExternalScene: false };
 };
 
-const ExcalidrawWrapper = () => {
+const ExcalidrawWrapper = ({ route }: { route: AppRoute }) => {
   const [errorMessage, setErrorMessage] = useState("");
   const isCollabDisabled = isRunningInIframe();
+  const isCloudProject = route.kind === "project";
+  const cloudProjectId = isCloudProject ? route.projectId : null;
+  const isLegacyCollabEnabled = !isCollabDisabled && !isCloudProject;
 
   const { editorTheme, appTheme, setAppTheme } = useHandleAppTheme();
 
@@ -416,6 +428,10 @@ const ExcalidrawWrapper = () => {
 
   const [excalidrawAPI, excalidrawRefCallback] =
     useCallbackRefState<ExcalidrawImperativeAPI>();
+  const cloudProject = useCloudProjectSync({
+    projectId: cloudProjectId,
+    excalidrawAPI,
+  });
 
   const [, setShareDialogState] = useAtom(shareDialogStateAtom);
   const [collabAPI] = useAtom(collabAPIAtom);
@@ -423,6 +439,7 @@ const ExcalidrawWrapper = () => {
     return isCollaborationLink(window.location.href);
   });
   const collabError = useAtomValue(collabErrorIndicatorAtom);
+  const isEditorCollaborating = isCollaborating;
 
   const isSpacePressedRef = useRef(false);
 
@@ -623,6 +640,30 @@ const ExcalidrawWrapper = () => {
   }, [excalidrawAPI]);
 
   useEffect(() => {
+    if (!isCloudProject) {
+      return;
+    }
+
+    if (cloudProject.initialData) {
+      initialStatePromiseRef.current.promise.resolve(cloudProject.initialData);
+      return;
+    }
+
+    if (cloudProject.loadError) {
+      initialStatePromiseRef.current.promise.resolve({
+        appState: {
+          errorMessage: cloudProject.loadError,
+        },
+      });
+      setErrorMessage(cloudProject.loadError);
+    }
+  }, [cloudProject.initialData, cloudProject.loadError, isCloudProject]);
+
+  useEffect(() => {
+    if (isCloudProject) {
+      return;
+    }
+
     if (!excalidrawAPI || (!isCollabDisabled && !collabAPI)) {
       return;
     }
@@ -817,7 +858,7 @@ const ExcalidrawWrapper = () => {
         false,
       );
     };
-  }, [isCollabDisabled, collabAPI, excalidrawAPI, setLangCode]);
+  }, [isCloudProject, isCollabDisabled, collabAPI, excalidrawAPI, setLangCode]);
 
   useEffect(() => {
     const unloadHandler = (event: BeforeUnloadEvent) => {
@@ -849,6 +890,21 @@ const ExcalidrawWrapper = () => {
     appState: AppState,
     files: BinaryFiles,
   ) => {
+    if (isCloudProject) {
+      cloudProject.handleSceneChange(elements, appState, files);
+
+      if (debugCanvasRef.current && excalidrawAPI) {
+        debugRenderer(
+          debugCanvasRef.current,
+          appState,
+          elements,
+          window.devicePixelRatio,
+        );
+      }
+
+      return;
+    }
+
     if (collabAPI?.isCollaborating()) {
       collabAPI.syncElements(elements);
     }
@@ -961,7 +1017,21 @@ const ExcalidrawWrapper = () => {
     if (!excalidrawAPI) {
       return;
     }
+
     const elements = excalidrawAPI.getSceneElements();
+    if (isCloudProject) {
+      const confirmed =
+        !elements.length || (await openConfirmModal(newProjectConfirmDialog));
+
+      if (!confirmed) {
+        return;
+      }
+
+      const project = await createProject();
+      navigateToPath(`/draw/${project.id}`);
+      return;
+    }
+
     if (elements.length > 0) {
       const confirmed = await openConfirmModal(newProjectConfirmDialog);
       if (confirmed) {
@@ -974,7 +1044,7 @@ const ExcalidrawWrapper = () => {
       localStorage.removeItem(STORAGE_KEYS.LOCAL_STORAGE_APP_STATE);
       excalidrawAPI.resetScene();
     }
-  }, [excalidrawAPI]);
+  }, [excalidrawAPI, isCloudProject]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -991,6 +1061,32 @@ const ExcalidrawWrapper = () => {
       window.removeEventListener("keydown", handleKeyDown, { capture: true });
     };
   }, [onNewProject]);
+
+  useEffect(() => {
+    if (!isCloudProject) {
+      return;
+    }
+
+    const handleCloudSaveShortcut = (event: KeyboardEvent) => {
+      if (
+        (event.ctrlKey || event.metaKey) &&
+        event.key.toLowerCase() === "s"
+      ) {
+        event.preventDefault();
+        void cloudProject.saveNow();
+      }
+    };
+
+    window.addEventListener("keydown", handleCloudSaveShortcut, {
+      capture: true,
+    });
+
+    return () => {
+      window.removeEventListener("keydown", handleCloudSaveShortcut, {
+        capture: true,
+      });
+    };
+  }, [cloudProject.saveNow, isCloudProject]);
 
   const onCollabDialogOpen = useCallback(
     () => setShareDialogState({ isOpen: true, type: "collaborationOnly" }),
@@ -1061,9 +1157,67 @@ const ExcalidrawWrapper = () => {
       onPointerDownCapture={handlePointerDownCapture}
       onContextMenuCapture={handleContextMenu}
       className={clsx("excalidraw-app", {
-        "is-collaborating": isCollaborating,
+        "is-collaborating": isEditorCollaborating,
       })}
     >
+      {isCloudProject && (
+        <div className="cloud-project-topline">
+          <div className="cloud-project-topline__primary">
+            <button
+              type="button"
+              className="cloud-link-button cloud-project-topline__back"
+              onClick={() => navigateToPath("/dashboard")}
+            >
+              Dashboard
+            </button>
+            <input
+              className="cloud-project-title-input"
+              type="text"
+              value={cloudProject.projectName}
+              onChange={(event) =>
+                cloudProject.handleProjectNameChange(event.target.value)
+              }
+              onBlur={() => {
+                void cloudProject.commitProjectName();
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.currentTarget.blur();
+                }
+              }}
+              placeholder="Untitled project"
+              aria-label="Project name"
+              maxLength={120}
+            />
+            <span className="cloud-project-topline__meta">
+              Cloud project
+            </span>
+          </div>
+
+          <div className="cloud-project-topline__actions">
+            {cloudProject.collaboratorCount > 0 && (
+              <span className="cloud-pill">
+                {cloudProject.collaboratorCount} collaborator
+                {cloudProject.collaboratorCount === 1 ? "" : "s"} online
+              </span>
+            )}
+            <SaveBadge
+              state={cloudProject.saveState}
+              lastSavedAt={cloudProject.lastSavedAt}
+              error={cloudProject.saveError}
+            />
+            <button
+              type="button"
+              className="cloud-secondary-button cloud-project-topline__save"
+              onClick={() => {
+                void cloudProject.saveNow();
+              }}
+            >
+              Save now
+            </button>
+          </div>
+        </div>
+      )}
       {brushPreview.visible && excalidrawAPI && (
         <div
           style={{
@@ -1155,93 +1309,109 @@ const ExcalidrawWrapper = () => {
           </div>
         </div>
       )}
-      <Excalidraw
-        excalidrawAPI={excalidrawRefCallback}
-        onChange={onChange}
-        initialData={initialStatePromiseRef.current.promise}
-        isCollaborating={isCollaborating}
-        onPointerUpdate={collabAPI?.onPointerUpdate}
-        UIOptions={{
-          canvasActions: {
-            toggleTheme: true,
-            export: {
-              onExportToBackend,
-              renderCustomUI: excalidrawAPI
-                ? (elements, appState, files) => {
-                    return (
-                      <ExportToExcalidrawPlus
-                        elements={elements}
-                        appState={appState}
-                        files={files}
-                        name={excalidrawAPI.getName()}
-                        onError={(error) => {
-                          excalidrawAPI?.updateScene({
-                            appState: {
-                              errorMessage: error.message,
-                            },
-                          });
-                        }}
-                        onSuccess={() => {
-                          excalidrawAPI.updateScene({
-                            appState: { openDialog: null },
-                          });
-                        }}
-                      />
-                    );
-                  }
-                : undefined,
+      <div className={clsx({ "cloud-project-editor-host": isCloudProject })}>
+        <Excalidraw
+          excalidrawAPI={excalidrawRefCallback}
+          onChange={onChange}
+          initialData={initialStatePromiseRef.current.promise}
+          isCollaborating={isEditorCollaborating}
+          onPointerUpdate={
+            isCloudProject
+              ? cloudProject.handlePointerUpdate
+              : collabAPI?.onPointerUpdate
+          }
+          UIOptions={{
+            canvasActions: {
+              toggleTheme: true,
+              saveToActiveFile: !isCloudProject,
+              export: {
+                onExportToBackend,
+                renderCustomUI: excalidrawAPI
+                  ? (elements, appState, files) => {
+                      return (
+                        <ExportToExcalidrawPlus
+                          elements={elements}
+                          appState={appState}
+                          files={files}
+                          name={excalidrawAPI.getName()}
+                          onError={(error) => {
+                            excalidrawAPI?.updateScene({
+                              appState: {
+                                errorMessage: error.message,
+                              },
+                            });
+                          }}
+                          onSuccess={() => {
+                            excalidrawAPI.updateScene({
+                              appState: { openDialog: null },
+                            });
+                          }}
+                        />
+                      );
+                    }
+                  : undefined,
+              },
             },
-          },
-        }}
-        langCode={langCode}
-        renderCustomStats={renderCustomStats}
-        detectScroll={false}
-        handleKeyboardGlobally={true}
-        autoFocus={true}
-        theme={editorTheme}
-        renderTopRightUI={(isMobile) => {
-          if (isMobile || !collabAPI || isCollabDisabled) {
-            return null;
+          }}
+          langCode={langCode}
+          renderCustomStats={renderCustomStats}
+          detectScroll={false}
+          handleKeyboardGlobally={true}
+          autoFocus={true}
+          theme={editorTheme}
+          name={
+            isCloudProject
+              ? cloudProject.projectName || cloudProject.project?.name
+              : undefined
           }
+          renderTopRightUI={(isMobile) => {
+            if (isCloudProject) {
+              return null;
+            }
 
-          return (
-            <div className="excalidraw-ui-top-right">
-              {excalidrawAPI?.getEditorInterface().formFactor === "desktop" && (
-                <ExcalidrawPlusPromoBanner
-                  isSignedIn={isExcalidrawPlusSignedUser}
+            if (isMobile || !collabAPI || isCollabDisabled) {
+              return null;
+            }
+
+            return (
+              <div className="excalidraw-ui-top-right">
+                {excalidrawAPI?.getEditorInterface().formFactor === "desktop" && (
+                  <ExcalidrawPlusPromoBanner
+                    isSignedIn={isExcalidrawPlusSignedUser}
+                  />
+                )}
+
+                {collabError.message && <CollabError collabError={collabError} />}
+                <LiveCollaborationTrigger
+                  isCollaborating={isCollaborating}
+                  onSelect={() =>
+                    setShareDialogState({ isOpen: true, type: "share" })
+                  }
+                  editorInterface={editorInterface}
                 />
-              )}
-
-              {collabError.message && <CollabError collabError={collabError} />}
-              <LiveCollaborationTrigger
-                isCollaborating={isCollaborating}
-                onSelect={() =>
-                  setShareDialogState({ isOpen: true, type: "share" })
-                }
-                editorInterface={editorInterface}
-              />
-            </div>
-          );
-        }}
-        onLinkOpen={(element, event) => {
-          if (element.link && isElementLink(element.link)) {
-            event.preventDefault();
-            excalidrawAPI?.scrollToContent(element.link, { animate: true });
-          }
-        }}
-      >
+              </div>
+            );
+          }}
+          onLinkOpen={(element, event) => {
+            if (element.link && isElementLink(element.link)) {
+              event.preventDefault();
+              excalidrawAPI?.scrollToContent(element.link, { animate: true });
+            }
+          }}
+        >
         <AppMainMenu
           onNewProject={onNewProject}
           onCollabDialogOpen={onCollabDialogOpen}
-          isCollaborating={isCollaborating}
-          isCollabEnabled={!isCollabDisabled}
+          isCollaborating={isEditorCollaborating}
+          isCollabEnabled={isLegacyCollabEnabled}
+          isCloudProject={isCloudProject}
           theme={appTheme}
           setTheme={(theme) => setAppTheme(theme)}
           refresh={() => forceRefresh((prev) => !prev)}
         />
         <AppWelcomeScreen
           onCollabDialogOpen={onCollabDialogOpen}
-          isCollabEnabled={!isCollabDisabled}
+          isCollabEnabled={isLegacyCollabEnabled}
         />
         <OverwriteConfirmDialog>
           <OverwriteConfirmDialog.Actions.ExportToImage />
@@ -1267,7 +1437,7 @@ const ExcalidrawWrapper = () => {
         {excalidrawAPI && <AIComponents excalidrawAPI={excalidrawAPI} />}
 
         <TTDDialogTrigger />
-        {isCollaborating && isOffline && (
+        {!isCloudProject && isCollaborating && isOffline && (
           <div className="alertalert--warning">
             {t("alerts.collabOfflineWarning")}
           </div>
@@ -1284,26 +1454,28 @@ const ExcalidrawWrapper = () => {
             setErrorMessage={setErrorMessage}
           />
         )}
-        {excalidrawAPI && !isCollabDisabled && (
+        {excalidrawAPI && isLegacyCollabEnabled && (
           <Collab excalidrawAPI={excalidrawAPI} />
         )}
 
-        <ShareDialog
-          collabAPI={collabAPI}
-          onExportToBackend={async () => {
-            if (excalidrawAPI) {
-              try {
-                await onExportToBackend(
-                  excalidrawAPI.getSceneElements(),
-                  excalidrawAPI.getAppState(),
-                  excalidrawAPI.getFiles(),
-                );
-              } catch (error: any) {
-                setErrorMessage(error.message);
+        {!isCloudProject && (
+          <ShareDialog
+            collabAPI={collabAPI}
+            onExportToBackend={async () => {
+              if (excalidrawAPI) {
+                try {
+                  await onExportToBackend(
+                    excalidrawAPI.getSceneElements(),
+                    excalidrawAPI.getAppState(),
+                    excalidrawAPI.getFiles(),
+                  );
+                } catch (error: any) {
+                  setErrorMessage(error.message);
+                }
               }
-            }
-          }}
-        />
+            }}
+          />
+        )}
 
         <AppSidebar />
 
@@ -1315,67 +1487,71 @@ const ExcalidrawWrapper = () => {
 
         <CommandPalette
           customCommandPaletteItems={[
-            {
-              label: t("labels.liveCollaboration"),
-              category: DEFAULT_CATEGORIES.app,
-              keywords: [
-                "team",
-                "multiplayer",
-                "share",
-                "public",
-                "session",
-                "invite",
-              ],
-              icon: usersIcon,
-              perform: () => {
-                setShareDialogState({
-                  isOpen: true,
-                  type: "collaborationOnly",
-                });
-              },
-            },
-            {
-              label: t("roomDialog.button_stopSession"),
-              category: DEFAULT_CATEGORIES.app,
-              predicate: () => !!collabAPI?.isCollaborating(),
-              keywords: [
-                "stop",
-                "session",
-                "end",
-                "leave",
-                "close",
-                "exit",
-                "collaboration",
-              ],
-              perform: () => {
-                if (collabAPI) {
-                  collabAPI.stopCollaboration();
-                  if (!collabAPI.isCollaborating()) {
-                    setShareDialogState({ isOpen: false });
-                  }
-                }
-              },
-            },
-            {
-              label: t("labels.share"),
-              category: DEFAULT_CATEGORIES.app,
-              predicate: true,
-              icon: share,
-              keywords: [
-                "link",
-                "shareable",
-                "readonly",
-                "export",
-                "publish",
-                "snapshot",
-                "url",
-                "collaborate",
-                "invite",
-              ],
-              perform: async () => {
-                setShareDialogState({ isOpen: true, type: "share" });
-              },
-            },
+            ...(!isCloudProject
+              ? [
+                  {
+                    label: t("labels.liveCollaboration"),
+                    category: DEFAULT_CATEGORIES.app,
+                    keywords: [
+                      "team",
+                      "multiplayer",
+                      "share",
+                      "public",
+                      "session",
+                      "invite",
+                    ],
+                    icon: usersIcon,
+                    perform: () => {
+                      setShareDialogState({
+                        isOpen: true,
+                        type: "collaborationOnly",
+                      });
+                    },
+                  },
+                  {
+                    label: t("roomDialog.button_stopSession"),
+                    category: DEFAULT_CATEGORIES.app,
+                    predicate: () => !!collabAPI?.isCollaborating(),
+                    keywords: [
+                      "stop",
+                      "session",
+                      "end",
+                      "leave",
+                      "close",
+                      "exit",
+                      "collaboration",
+                    ],
+                    perform: () => {
+                      if (collabAPI) {
+                        collabAPI.stopCollaboration();
+                        if (!collabAPI.isCollaborating()) {
+                          setShareDialogState({ isOpen: false });
+                        }
+                      }
+                    },
+                  },
+                  {
+                    label: t("labels.share"),
+                    category: DEFAULT_CATEGORIES.app,
+                    predicate: true,
+                    icon: share,
+                    keywords: [
+                      "link",
+                      "shareable",
+                      "readonly",
+                      "export",
+                      "publish",
+                      "snapshot",
+                      "url",
+                      "collaborate",
+                      "invite",
+                    ],
+                    perform: async () => {
+                      setShareDialogState({ isOpen: true, type: "share" });
+                    },
+                  },
+                ]
+              : []),
             {
               label: "GitHub",
               icon: GithubIcon,
@@ -1509,7 +1685,8 @@ const ExcalidrawWrapper = () => {
             ref={debugCanvasRef}
           />
         )}
-      </Excalidraw>
+        </Excalidraw>
+      </div>
     </div>
   );
 };
@@ -1517,14 +1694,86 @@ const ExcalidrawWrapper = () => {
 const ExcalidrawApp = () => {
   const isCloudExportWindow =
     window.location.pathname === "/excalidraw-plus-export";
+  const route = useAppRoute();
+  const cloudAuth = useCloudAuthSession();
+
+  useEffect(() => {
+    if (route.kind === "auth" && cloudAuth.status === "authenticated") {
+      navigateToPath("/dashboard", { replace: true });
+      return;
+    }
+
+    if (
+      (route.kind === "dashboard" || route.kind === "project") &&
+      cloudAuth.status === "anonymous"
+    ) {
+      navigateToPath("/", { replace: true });
+    }
+  }, [cloudAuth.status, route.kind]);
+
   if (isCloudExportWindow) {
     return <ExcalidrawPlusIframeExport />;
+  }
+
+  if (route.kind === "auth") {
+    return (
+      <TopErrorBoundary>
+        <CloudAuthScreen
+          status={cloudAuth.status}
+          error={cloudAuth.error}
+          onSignIn={cloudAuth.signIn}
+          onSignUp={cloudAuth.signUp}
+        />
+      </TopErrorBoundary>
+    );
+  }
+
+  if (
+    (route.kind === "dashboard" || route.kind === "project") &&
+    cloudAuth.status !== "authenticated"
+  ) {
+    return (
+      <TopErrorBoundary>
+        <main className="cloud-shell cloud-auth-shell">
+          <section className="cloud-auth-panel">
+            <p className="cloud-kicker">Cloud Workspace</p>
+            <h2>
+              {cloudAuth.status === "loading"
+                ? "Checking your session"
+                : "Redirecting to login"}
+            </h2>
+            <p className="cloud-subtitle">
+              {cloudAuth.status === "loading"
+                ? "Hold on while we restore your account."
+                : "Please sign in to open cloud projects and your dashboard."}
+            </p>
+          </section>
+        </main>
+      </TopErrorBoundary>
+    );
+  }
+
+  if (route.kind === "dashboard") {
+    return (
+      <TopErrorBoundary>
+        <CloudDashboard
+          session={cloudAuth.session!}
+          onSignOut={async () => {
+            await cloudAuth.signOut();
+            navigateToPath("/", { replace: true });
+          }}
+        />
+      </TopErrorBoundary>
+    );
   }
 
   return (
     <TopErrorBoundary>
       <Provider store={appJotaiStore}>
-        <ExcalidrawWrapper />
+        <ExcalidrawWrapper
+          key={route.kind === "project" ? route.projectId : route.kind}
+          route={route}
+        />
       </Provider>
     </TopErrorBoundary>
   );

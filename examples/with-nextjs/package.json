@@ -5,22 +5,36 @@
   "scripts": {
     "build:packages": "yarn --cwd ../../ build:packages",
     "build:workspace": "yarn build:packages && yarn copy:assets",
-    "copy:assets": "cp -r ../../packages/excalidraw/dist/prod/fonts ./public",
+    "copy:assets": "node -e \"const fs=require('fs');const path=require('path');const cwd=process.cwd();const copy=(from,to)=>fs.cpSync(path.resolve(cwd,from),path.resolve(cwd,to),{recursive:true,force:true});copy('../../packages/excalidraw/dist/prod/fonts','./public/fonts');copy('../../public/Assistant-Regular.woff2','./public/Assistant-Regular.woff2');copy('../../public/Cascadia.woff2','./public/Cascadia.woff2');\"",
     "dev": "yarn build:workspace && next dev -p 3005",
     "build": "yarn build:workspace && next build",
     "start": "next start -p 3006",
-    "lint": "next lint"
+    "lint": "next lint",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev"
   },
   "dependencies": {
+    "@excalidraw/common": "0.18.0",
+    "@excalidraw/element": "0.18.0",
+    "@excalidraw/excalidraw": "0.18.0",
+    "@excalidraw/math": "0.18.0",
+    "@excalidraw/utils": "0.1.2",
+    "@prisma/client": "^6.15.0",
+    "better-auth": "^1.3.8",
+    "cloudinary": "^2.7.0",
     "next": "14.1",
     "react": "19.0.0",
     "react-dom": "19.0.0"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.13",
     "@types/node": "^20",
     "@types/react": "19.0.10",
     "@types/react-dom": "19.0.4",
     "path2d-polyfill": "2.0.1",
+    "postcss": "^8.5.6",
+    "prisma": "^6.15.0",
+    "tailwindcss": "^4.1.13",
     "typescript": "^5"
   }
 }
