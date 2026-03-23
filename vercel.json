@@ -9,7 +9,7 @@
       "headers": [
         {
           "key": "Access-Control-Allow-Origin",
-          "value": "https://excalidraw.com"
+          "value": "*"
         },
         {
           "key": "X-Content-Type-Options",
