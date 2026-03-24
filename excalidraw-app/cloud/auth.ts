@@ -1,6 +1,14 @@
-const CLOUD_API_BASE = (
-  import.meta.env.VITE_APP_CLOUD_API_URL || "http://localhost:3004/api"
-).replace(/\/$/, "");
+const getCloudApiBase = () => {
+  if (import.meta.env.VITE_APP_CLOUD_API_URL) {
+    return import.meta.env.VITE_APP_CLOUD_API_URL.replace(/\/$/, "");
+  }
+  if (typeof window !== "undefined" && window.location.hostname !== "localhost") {
+    return `${window.location.origin}/api`;
+  }
+  return "http://localhost:3004/api";
+};
+
+const CLOUD_API_BASE = getCloudApiBase();
 
 const AUTH_STORAGE_KEY = "excalidraw:cloud-auth-token";
 const AUTH_CHANGE_EVENT = "excalidraw-cloud:auth-change";

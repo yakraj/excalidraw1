@@ -1,0 +1,7 @@
+{
+  "version": 2,
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/cloud-backend/server.mjs" },
+    { "source": "/ws", "destination": "/cloud-backend/server.mjs" }
+  ]
+}

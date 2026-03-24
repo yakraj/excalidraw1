@@ -5,8 +5,18 @@ import type {
   PersistedSceneData,
 } from "./project-scene";
 
-const CLOUD_WS_URL =
-  import.meta.env.VITE_APP_CLOUD_WS_URL || "ws://localhost:3004/ws";
+const getCloudWsUrl = () => {
+  if (import.meta.env.VITE_APP_CLOUD_WS_URL) {
+    return import.meta.env.VITE_APP_CLOUD_WS_URL;
+  }
+  if (typeof window !== "undefined" && window.location.hostname !== "localhost") {
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    return `${protocol}//${window.location.host}/ws`;
+  }
+  return "http://localhost:3004/ws";
+};
+
+const CLOUD_WS_URL = getCloudWsUrl();
 
 export type ProjectCollaborator = {
   clientId: string;

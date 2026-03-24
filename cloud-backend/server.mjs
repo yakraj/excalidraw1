@@ -34,12 +34,17 @@ const loadPrismaClient = async () => {
 
 const { PrismaClient } = await loadPrismaClient();
 
+const repoRoot = path.resolve(__dirname, "..");
 dotenv.config({ path: path.resolve(repoRoot, "examples/with-nextjs/.env") });
 dotenv.config({ path: path.resolve(__dirname, ".env"), override: true });
 
 const required = (name) => {
   const value = process.env[name];
   if (!value) {
+    if (process.env.VERCEL) {
+      // Return empty string or handle missing env vars gracefully on Vercel
+      return "";
+    }
     throw new Error(`Missing environment variable: ${name}`);
   }
   return value;
@@ -901,8 +906,18 @@ const server = http.createServer(async (req, res) => {
 });
 
 const wss = new WebSocketServer({
-  server,
+  noServer: true,
   path: "/ws",
+});
+
+server.on("upgrade", (request, socket, head) => {
+  if (new URL(request.url, `http://${request.headers.host}`).pathname === "/ws") {
+    wss.handleUpgrade(request, socket, head, (ws) => {
+      wss.emit("connection", ws, request);
+    });
+  } else {
+    socket.destroy();
+  }
 });
 
 wss.on("connection", (ws) => {
@@ -1081,9 +1096,13 @@ wss.on("connection", (ws) => {
   });
 });
 
-server.listen(config.port, () => {
-  console.log(`Cloud backend listening on http://localhost:${config.port}`);
-});
+if (!process.env.VERCEL) {
+  server.listen(config.port, () => {
+    console.log(`Cloud backend listening on http://localhost:${config.port}`);
+  });
+}
+
+export default server;
 
 const shutdown = async () => {
   wss.close();
