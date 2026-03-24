@@ -94,7 +94,11 @@ const isDeprecatedBlankCloudScene = (candidate) => {
       ? candidate.appState
       : null;
 
-  if (!appState || !Array.isArray(candidate.elements) || candidate.elements.length) {
+  if (
+    !appState ||
+    !Array.isArray(candidate.elements) ||
+    candidate.elements.length
+  ) {
     return false;
   }
 
@@ -102,7 +106,9 @@ const isDeprecatedBlankCloudScene = (candidate) => {
   return (
     appState.viewBackgroundColor === "#0f172a" &&
     appState.gridModeEnabled === false &&
-    keys.every((key) => key === "viewBackgroundColor" || key === "gridModeEnabled")
+    keys.every(
+      (key) => key === "viewBackgroundColor" || key === "gridModeEnabled",
+    )
   );
 };
 
@@ -293,7 +299,10 @@ const serializeProject = (project) => {
       elements: sceneData.elements,
       appState: sceneData.appState,
       files: Object.fromEntries(
-        project.assets.map((asset) => [asset.fileId, serializeAssetFile(asset)]),
+        project.assets.map((asset) => [
+          asset.fileId,
+          serializeAssetFile(asset),
+        ]),
       ),
     },
   };
@@ -370,12 +379,7 @@ const broadcastCollaborators = (projectId) => {
   });
 };
 
-const uploadDataUrl = async ({
-  dataURL,
-  folder,
-  publicId,
-  format,
-}) => {
+const uploadDataUrl = async ({ dataURL, folder, publicId, format }) => {
   return cloudinary.uploader.upload(dataURL, {
     folder,
     public_id: publicId,
@@ -410,7 +414,8 @@ const handleAuthRequest = async (req, res, url) => {
 
     if (!name || !email || password.length < 6) {
       writeJson(res, 400, {
-        message: "Name, valid email, and a password with 6+ characters are required.",
+        message:
+          "Name, valid email, and a password with 6+ characters are required.",
       });
       return;
     }
@@ -421,7 +426,9 @@ const handleAuthRequest = async (req, res, url) => {
     });
 
     if (existingUser) {
-      writeJson(res, 409, { message: "An account with this email already exists." });
+      writeJson(res, 409, {
+        message: "An account with this email already exists.",
+      });
       return;
     }
 
@@ -473,8 +480,7 @@ const handleAuthRequest = async (req, res, url) => {
     });
 
     const isValid =
-      account?.password &&
-      (await verifyPassword(password, account.password));
+      account?.password && (await verifyPassword(password, account.password));
 
     if (!account || !isValid) {
       writeJson(res, 401, { message: "Invalid email or password." });
@@ -659,7 +665,8 @@ const handleProjectsRequest = async (req, res, url, owner) => {
         revision: project?.revision ?? body.revision ?? 0,
         lastSavedAt:
           project?.lastSavedAt?.toISOString() ?? new Date().toISOString(),
-        updatedAt: project?.updatedAt?.toISOString() ?? new Date().toISOString(),
+        updatedAt:
+          project?.updatedAt?.toISOString() ?? new Date().toISOString(),
       });
       return;
     }
@@ -701,7 +708,10 @@ const handleProjectsRequest = async (req, res, url, owner) => {
     return;
   }
 
-  if (req.method === "DELETE" && url.pathname === `/api/projects/${projectId}`) {
+  if (
+    req.method === "DELETE" &&
+    url.pathname === `/api/projects/${projectId}`
+  ) {
     const deleted = await prisma.project.deleteMany({
       where: {
         id: projectId,
@@ -911,7 +921,9 @@ const wss = new WebSocketServer({
 });
 
 server.on("upgrade", (request, socket, head) => {
-  if (new URL(request.url, `http://${request.headers.host}`).pathname === "/ws") {
+  if (
+    new URL(request.url, `http://${request.headers.host}`).pathname === "/ws"
+  ) {
     wss.handleUpgrade(request, socket, head, (ws) => {
       wss.emit("connection", ws, request);
     });

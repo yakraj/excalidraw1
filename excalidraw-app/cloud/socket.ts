@@ -1,15 +1,15 @@
 import type { BinaryFileData } from "@excalidraw/excalidraw/types";
 
-import type {
-  CloudProjectPayload,
-  PersistedSceneData,
-} from "./project-scene";
+import type { CloudProjectPayload, PersistedSceneData } from "./project-scene";
 
 const getCloudWsUrl = () => {
   if (import.meta.env.VITE_APP_CLOUD_WS_URL) {
     return import.meta.env.VITE_APP_CLOUD_WS_URL;
   }
-  if (typeof window !== "undefined" && window.location.hostname !== "localhost") {
+  if (
+    typeof window !== "undefined" &&
+    window.location.hostname !== "localhost"
+  ) {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     return `${protocol}//${window.location.host}/ws`;
   }

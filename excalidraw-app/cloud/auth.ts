@@ -2,7 +2,10 @@ const getCloudApiBase = () => {
   if (import.meta.env.VITE_APP_CLOUD_API_URL) {
     return import.meta.env.VITE_APP_CLOUD_API_URL.replace(/\/$/, "");
   }
-  if (typeof window !== "undefined" && window.location.hostname !== "localhost") {
+  if (
+    typeof window !== "undefined" &&
+    window.location.hostname !== "localhost"
+  ) {
     return `${window.location.origin}/api`;
   }
   return "http://localhost:3004/api";
@@ -87,7 +90,11 @@ export const cloudRequest = async <T>(
 ): Promise<T> => {
   const headers = new Headers(init?.headers);
 
-  if (!headers.has("Content-Type") && init?.body && !(init.body instanceof FormData)) {
+  if (
+    !headers.has("Content-Type") &&
+    init?.body &&
+    !(init.body instanceof FormData)
+  ) {
     headers.set("Content-Type", "application/json");
   }
 
