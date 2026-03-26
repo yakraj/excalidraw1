@@ -885,7 +885,7 @@ const handleProjectsRequest = async (req, res, url, owner) => {
   writeJson(res, 404, { message: "Not found" }, req);
 };
 
-const server = http.createServer(async (req, res) => {
+const requestHandler = async (req, res) => {
   try {
     const url = new URL(req.url || "/", `http://${req.headers.host}`);
 
@@ -908,7 +908,7 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname.startsWith("/api/projects")) {
       const session = await getAuthenticatedSession(req);
       if (!session) {
-        writeJson(res, 401, { message: "Unauthorized" });
+        writeJson(res, 401, { message: "Unauthorized" }, req);
         return;
       }
 
@@ -923,7 +923,9 @@ const server = http.createServer(async (req, res) => {
       message: error instanceof Error ? error.message : "Internal server error",
     }, req);
   }
-});
+};
+
+const server = http.createServer(requestHandler);
 
 const wss = new WebSocketServer({
   noServer: true,
@@ -1124,7 +1126,7 @@ if (!process.env.VERCEL) {
   });
 }
 
-export default server;
+export default requestHandler;
 
 const shutdown = async () => {
   wss.close();
