@@ -1,8 +1,19 @@
 {
-  "buildCommand": "yarn build",
+  "buildCommand": "yarn cloud:prisma:generate && yarn build",
   "outputDirectory": "excalidraw-app/build",
   "framework": "vite",
   "public": true,
+  "functions": {
+    "api/[...path].js": {
+      "runtime": "nodejs22.x"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
+    }
+  ],
   "headers": [
     {
       "source": "/(.*)",
@@ -68,6 +79,5 @@
       "destination": "https://marketplace.visualstudio.com/items?itemName=pomdtr.excalidraw-editor"
     }
   ],
-  "outputDirectory": "excalidraw-app/build",
   "installCommand": "yarn install"
 }
