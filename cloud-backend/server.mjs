@@ -75,17 +75,37 @@ const prisma = new PrismaClient({
 
 const ALLOWED_CORS_ORIGINS = new Set([
   "https://draw.adonaisoft.com",
+  "https://www.draw.adonaisoft.com",
   "http://localhost:3000",
+  "http://localhost:3001",
   "http://localhost:5173",
 ]);
 
-const getCorsHeaders = (origin) => {
-  const allowOrigin = origin && ALLOWED_CORS_ORIGINS.has(origin) ? origin : null;
+const isAllowedOrigin = (origin) => {
+  if (!origin) {
+    return false;
+  }
+  if (ALLOWED_CORS_ORIGINS.has(origin)) {
+    return true;
+  }
+  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+    return true;
+  }
+  // Allow Vercel preview/branch deployments.
+  if (origin.endsWith(".vercel.app")) {
+    return true;
+  }
+  return false;
+};
+
+const getCorsHeaders = (origin, requestHeaders) => {
+  const allowOrigin = isAllowedOrigin(origin) ? origin : null;
 
   return {
-    "Access-Control-Allow-Origin": allowOrigin ?? "https://draw.adonaisoft.com",
+    "Access-Control-Allow-Origin": allowOrigin ?? "*",
     "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Access-Control-Allow-Headers":
+      requestHeaders || "Content-Type, Authorization",
     Vary: "Origin",
   };
 };
@@ -320,7 +340,10 @@ const serializeProject = (project) => {
 
 const writeJson = (res, statusCode, payload, req) => {
   res.writeHead(statusCode, {
-    ...getCorsHeaders(req?.headers?.origin),
+    ...getCorsHeaders(
+      req?.headers?.origin,
+      req?.headers?.["access-control-request-headers"],
+    ),
     "Content-Type": "application/json; charset=utf-8",
   });
   res.end(JSON.stringify(payload));
@@ -890,7 +913,13 @@ const requestHandler = async (req, res) => {
     const url = new URL(req.url || "/", `http://${req.headers.host}`);
 
     if (req.method === "OPTIONS") {
-      res.writeHead(204, getCorsHeaders(req.headers.origin));
+      res.writeHead(
+        204,
+        getCorsHeaders(
+          req.headers.origin,
+          req.headers["access-control-request-headers"],
+        ),
+      );
       res.end();
       return;
     }

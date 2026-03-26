@@ -17,6 +17,19 @@ export default defineConfig(({ mode }) => {
       port: Number(envVars.VITE_APP_PORT || 3000),
       // open the browser
       open: true,
+      // Mirror Vercel-style routing in local dev:
+      // app on :3001 proxies /api and /ws to cloud backend on :3004.
+      proxy: {
+        "/api": {
+          target: "http://localhost:3004",
+          changeOrigin: true,
+        },
+        "/ws": {
+          target: "ws://localhost:3004",
+          changeOrigin: true,
+          ws: true,
+        },
+      },
     },
     // We need to specify the envDir since now there are no
     //more located in parallel with the vite.config.ts file but in parent dir
