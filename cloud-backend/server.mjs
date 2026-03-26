@@ -911,6 +911,12 @@ const handleProjectsRequest = async (req, res, url, owner) => {
 const requestHandler = async (req, res) => {
   try {
     const url = new URL(req.url || "/", `http://${req.headers.host}`);
+    const normalizedPathname = url.pathname.startsWith("/api/")
+      ? url.pathname
+      : `/api${url.pathname}`;
+    if (normalizedPathname !== url.pathname) {
+      url.pathname = normalizedPathname;
+    }
 
     if (req.method === "OPTIONS") {
       res.writeHead(
