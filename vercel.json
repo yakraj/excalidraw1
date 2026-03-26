@@ -3,12 +3,6 @@
   "outputDirectory": "excalidraw-app/build",
   "framework": "vite",
   "public": true,
-  "rewrites": [
-    {
-      "source": "/api/(.*)",
-      "destination": "/api/$1"
-    }
-  ],
   "headers": [
     {
       "source": "/(.*)",
