@@ -3,11 +3,6 @@
   "outputDirectory": "excalidraw-app/build",
   "framework": "vite",
   "public": true,
-  "functions": {
-    "api/[...path].js": {
-      "runtime": "nodejs22.x"
-    }
-  },
   "rewrites": [
     {
       "source": "/api/(.*)",
