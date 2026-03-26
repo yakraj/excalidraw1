@@ -34,7 +34,6 @@ const loadPrismaClient = async () => {
 
 const { PrismaClient } = await loadPrismaClient();
 
-const repoRoot = path.resolve(__dirname, "..");
 dotenv.config({ path: path.resolve(repoRoot, "examples/with-nextjs/.env") });
 dotenv.config({ path: path.resolve(__dirname, ".env"), override: true });
 
@@ -74,10 +73,21 @@ const prisma = new PrismaClient({
   log: ["error"],
 });
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+const ALLOWED_CORS_ORIGINS = new Set([
+  "https://draw.adonaisoft.com",
+  "http://localhost:3000",
+  "http://localhost:5173",
+]);
+
+const getCorsHeaders = (origin) => {
+  const allowOrigin = origin && ALLOWED_CORS_ORIGINS.has(origin) ? origin : null;
+
+  return {
+    "Access-Control-Allow-Origin": allowOrigin ?? "https://draw.adonaisoft.com",
+    "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    Vary: "Origin",
+  };
 };
 
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 30;
@@ -308,9 +318,9 @@ const serializeProject = (project) => {
   };
 };
 
-const writeJson = (res, statusCode, payload) => {
+const writeJson = (res, statusCode, payload, req) => {
   res.writeHead(statusCode, {
-    ...corsHeaders,
+    ...getCorsHeaders(req?.headers?.origin),
     "Content-Type": "application/json; charset=utf-8",
   });
   res.end(JSON.stringify(payload));
@@ -580,7 +590,7 @@ const handleProjectsRequest = async (req, res, url, owner) => {
     });
 
     if (!project) {
-      writeJson(res, 404, { message: "Project not found" });
+      writeJson(res, 404, { message: "Project not found" }, req);
       return;
     }
 
@@ -847,7 +857,7 @@ const handleProjectsRequest = async (req, res, url, owner) => {
     const body = await readJson(req);
 
     if (typeof body.dataURL !== "string") {
-      writeJson(res, 400, { message: "Invalid thumbnail payload" });
+      writeJson(res, 400, { message: "Invalid thumbnail payload" }, req);
       return;
     }
 
@@ -868,11 +878,11 @@ const handleProjectsRequest = async (req, res, url, owner) => {
       },
     });
 
-    writeJson(res, 200, { thumbnailUrl: uploaded.secure_url });
+    writeJson(res, 200, { thumbnailUrl: uploaded.secure_url }, req);
     return;
   }
 
-  writeJson(res, 404, { message: "Not found" });
+  writeJson(res, 404, { message: "Not found" }, req);
 };
 
 const server = http.createServer(async (req, res) => {
@@ -880,13 +890,13 @@ const server = http.createServer(async (req, res) => {
     const url = new URL(req.url || "/", `http://${req.headers.host}`);
 
     if (req.method === "OPTIONS") {
-      res.writeHead(204, corsHeaders);
+      res.writeHead(204, getCorsHeaders(req.headers.origin));
       res.end();
       return;
     }
 
     if (url.pathname === "/api/health") {
-      writeJson(res, 200, { ok: true });
+      writeJson(res, 200, { ok: true }, req);
       return;
     }
 
@@ -906,12 +916,12 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    writeJson(res, 404, { message: "Not found" });
+    writeJson(res, 404, { message: "Not found" }, req);
   } catch (error) {
     console.error(error);
     writeJson(res, 500, {
       message: error instanceof Error ? error.message : "Internal server error",
-    });
+    }, req);
   }
 });
 
