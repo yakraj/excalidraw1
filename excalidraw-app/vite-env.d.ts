@@ -12,6 +12,7 @@ interface ImportMetaEnv {
   VITE_APP_WS_SERVER_URL: string;
   VITE_APP_CLOUD_API_URL: string;
   VITE_APP_CLOUD_WS_URL: string;
+  VITE_APP_ENABLE_CLOUD_COLLAB: string;
 
   // set this only if using the collaboration workflow we use on excalidraw.com
   VITE_APP_PORTAL_URL: string;

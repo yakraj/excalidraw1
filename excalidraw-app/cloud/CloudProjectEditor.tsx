@@ -37,6 +37,7 @@ import {
 import { navigateToPath } from "./routes";
 import {
   createProjectSocket,
+  isCloudRealtimeEnabled,
   type ProjectCollaborator,
   type ServerSocketMessage,
 } from "./socket";
@@ -446,6 +447,11 @@ export const CloudProjectEditor = ({
   });
 
   useEffect(() => {
+    if (!isCloudRealtimeEnabled()) {
+      setCollaboratorCount(0);
+      return;
+    }
+
     if (!project || !username) {
       return;
     }
@@ -559,6 +565,10 @@ export const CloudProjectEditor = ({
       button: "down" | "up";
       pointersMap: Map<number, Readonly<{ x: number; y: number }>>;
     }) => {
+      if (!isCloudRealtimeEnabled()) {
+        return;
+      }
+
       const selectedElementIds =
         excalidrawAPI?.getAppState().selectedElementIds || {};
 
@@ -608,7 +618,7 @@ export const CloudProjectEditor = ({
       <main className="cloud-shell cloud-editor-route">
         <div className="cloud-empty-state">
           <h2>Loading project</h2>
-          <p>Preparing the scene, assets, autosave, and live collaboration.</p>
+          <p>Preparing the scene, assets, and autosave.</p>
         </div>
       </main>
     );

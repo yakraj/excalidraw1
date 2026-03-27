@@ -1,7 +1,14 @@
 {
+  "version": 2,
   "buildCommand": "yarn cloud:prisma:generate && yarn build",
   "outputDirectory": "excalidraw-app/build",
   "framework": "vite",
+  "functions": {
+    "api/[...path].js": {
+      "runtime": "nodejs20.x",
+      "maxDuration": 60
+    }
+  },
   "public": true,
   "headers": [
     {

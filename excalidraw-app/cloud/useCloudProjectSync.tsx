@@ -29,6 +29,7 @@ import { getStoredCloudAuthToken } from "./auth";
 import { isLocalBinaryFile, serializeSceneForDatabase } from "./project-scene";
 import {
   createProjectSocket,
+  isCloudRealtimeEnabled,
   type ProjectCollaborator,
   type ServerSocketMessage,
 } from "./socket";
@@ -549,6 +550,11 @@ export const useCloudProjectSync = ({
   });
 
   useEffect(() => {
+    if (!isCloudRealtimeEnabled()) {
+      setCollaboratorCount(0);
+      return;
+    }
+
     if (!project || !username) {
       return;
     }
@@ -669,6 +675,10 @@ export const useCloudProjectSync = ({
       button: "down" | "up";
       pointersMap: Map<number, Readonly<{ x: number; y: number }>>;
     }) => {
+      if (!isCloudRealtimeEnabled()) {
+        return;
+      }
+
       const selectedElementIds =
         excalidrawAPI?.getAppState().selectedElementIds || {};
 

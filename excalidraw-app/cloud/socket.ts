@@ -2,6 +2,9 @@ import type { BinaryFileData } from "@excalidraw/excalidraw/types";
 
 import type { CloudProjectPayload, PersistedSceneData } from "./project-scene";
 
+const CLOUD_REALTIME_ENABLED =
+  import.meta.env.VITE_APP_ENABLE_CLOUD_COLLAB === "true";
+
 const getCloudWsUrl = () => {
   if (import.meta.env.VITE_APP_CLOUD_WS_URL) {
     return import.meta.env.VITE_APP_CLOUD_WS_URL;
@@ -13,10 +16,12 @@ const getCloudWsUrl = () => {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     return `${protocol}//${window.location.host}/ws`;
   }
-  return "http://localhost:3004/ws";
+  return "ws://localhost:3004/ws";
 };
 
 const CLOUD_WS_URL = getCloudWsUrl();
+
+export const isCloudRealtimeEnabled = () => CLOUD_REALTIME_ENABLED;
 
 export type ProjectCollaborator = {
   clientId: string;
@@ -69,6 +74,19 @@ export const createProjectSocket = ({
   onOpen?: () => void;
   onClose?: () => void;
 }) => {
+  if (!CLOUD_REALTIME_ENABLED) {
+    return {
+      close: () => {},
+      sendSceneUpdate: (_sceneData: PersistedSceneData) => {},
+      sendPointerUpdate: (_payload: {
+        pointer: { x: number; y: number; tool: "pointer" | "laser" } | null;
+        button: "down" | "up";
+        selectedElementIds: Record<string, true>;
+        userState: string;
+      }) => {},
+    };
+  }
+
   const ws = new WebSocket(CLOUD_WS_URL);
 
   ws.addEventListener("open", () => {
