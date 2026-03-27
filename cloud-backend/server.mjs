@@ -224,7 +224,7 @@ const createSession = async (req, userId) => {
       userId,
       token,
       expiresAt,
-      ipAddress: req.socket.remoteAddress ?? null,
+      ipAddress: req.socket?.remoteAddress ?? req.headers["x-forwarded-for"]?.split(",")[0]?.trim() ?? null,
       userAgent: req.headers["user-agent"] ?? null,
     },
   });
