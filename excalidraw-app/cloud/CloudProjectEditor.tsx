@@ -6,7 +6,10 @@ import {
   exportToBlob,
   reconcileElements,
 } from "@excalidraw/excalidraw";
-import { restoreAppState, restoreElements } from "@excalidraw/excalidraw/data/restore";
+import {
+  restoreAppState,
+  restoreElements,
+} from "@excalidraw/excalidraw/data/restore";
 import { useEffect, useRef, useState, startTransition } from "react";
 
 import type {
@@ -100,18 +103,16 @@ const useEvent = <T extends (...args: any[]) => any>(handler: T) => {
   return stableHandlerRef.current as T;
 };
 
-export const CloudProjectEditor = ({
-  projectId,
-}: {
-  projectId: string;
-}) => {
+export const CloudProjectEditor = ({ projectId }: { projectId: string }) => {
   const [project, setProject] = useState<CloudProjectPayload | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [collaboratorCount, setCollaboratorCount] = useState(0);
-  const [username, setUsername] = useState(importUsernameFromLocalStorage() || "");
+  const [username, setUsername] = useState(
+    importUsernameFromLocalStorage() || "",
+  );
   const [excalidrawAPI, setExcalidrawAPI] =
     useState<ExcalidrawImperativeAPI | null>(null);
 
@@ -185,7 +186,9 @@ export const CloudProjectEditor = ({
         latestAppStateRef.current = data.initialData.appState as AppState;
         latestFilesRef.current = data.initialData.files;
         revisionRef.current = data.revision;
-        uploadedAssetIdsRef.current = new Set(Object.keys(data.initialData.files));
+        uploadedAssetIdsRef.current = new Set(
+          Object.keys(data.initialData.files),
+        );
       })
       .catch((error) => {
         if (isCancelled) {
@@ -697,7 +700,9 @@ export const CloudProjectEditor = ({
             <MainMenu.Item onClick={() => navigateToPath("/dashboard")}>
               Dashboard
             </MainMenu.Item>
-            <MainMenu.Item onClick={handleCreateProject}>New Project</MainMenu.Item>
+            <MainMenu.Item onClick={handleCreateProject}>
+              New Project
+            </MainMenu.Item>
             <MainMenu.DefaultItems.LoadScene />
             <MainMenu.DefaultItems.Export />
             <MainMenu.DefaultItems.SaveAsImage />

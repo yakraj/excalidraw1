@@ -4,7 +4,10 @@ import {
   exportToBlob,
   reconcileElements,
 } from "@excalidraw/excalidraw";
-import { restoreAppState, restoreElements } from "@excalidraw/excalidraw/data/restore";
+import {
+  restoreAppState,
+  restoreElements,
+} from "@excalidraw/excalidraw/data/restore";
 import { useEffect, useRef, useState, startTransition } from "react";
 
 import type {
@@ -111,7 +114,9 @@ export const useCloudProjectSync = ({
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [collaboratorCount, setCollaboratorCount] = useState(0);
-  const [username, setUsername] = useState(importUsernameFromLocalStorage() || "");
+  const [username, setUsername] = useState(
+    importUsernameFromLocalStorage() || "",
+  );
 
   const latestElementsRef = useRef<SceneElements>([]);
   const latestAppStateRef = useRef<AppState | null>(null);
@@ -211,7 +216,9 @@ export const useCloudProjectSync = ({
         latestAppStateRef.current = data.initialData.appState as AppState;
         latestFilesRef.current = data.initialData.files;
         revisionRef.current = data.revision;
-        uploadedAssetIdsRef.current = new Set(Object.keys(data.initialData.files));
+        uploadedAssetIdsRef.current = new Set(
+          Object.keys(data.initialData.files),
+        );
         savedProjectNameRef.current = data.name;
       })
       .catch((error) => {
@@ -255,7 +262,8 @@ export const useCloudProjectSync = ({
     }
 
     const normalized =
-      projectName.trim().replace(/\s+/g, " ").slice(0, 120) || "Untitled project";
+      projectName.trim().replace(/\s+/g, " ").slice(0, 120) ||
+      "Untitled project";
 
     if (
       normalized === savedProjectNameRef.current &&
