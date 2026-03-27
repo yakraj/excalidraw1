@@ -73,40 +73,12 @@ const prisma = new PrismaClient({
   log: ["error"],
 });
 
-const ALLOWED_CORS_ORIGINS = new Set([
-  "https://draw.adonaisoft.com",
-  "https://www.draw.adonaisoft.com",
-  "http://localhost:3000",
-  "http://localhost:3001",
-  "http://localhost:5173",
-]);
-
-const isAllowedOrigin = (origin) => {
-  if (!origin) {
-    return false;
-  }
-  if (ALLOWED_CORS_ORIGINS.has(origin)) {
-    return true;
-  }
-  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
-    return true;
-  }
-  // Allow Vercel preview/branch deployments.
-  if (origin.endsWith(".vercel.app")) {
-    return true;
-  }
-  return false;
-};
-
-const getCorsHeaders = (origin, requestHeaders) => {
-  const allowOrigin = isAllowedOrigin(origin) ? origin : null;
-
+const getCorsHeaders = (_origin, requestHeaders) => {
   return {
-    "Access-Control-Allow-Origin": allowOrigin ?? "*",
+    "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS",
     "Access-Control-Allow-Headers":
       requestHeaders || "Content-Type, Authorization",
-    Vary: "Origin",
   };
 };
 
@@ -954,9 +926,15 @@ const requestHandler = async (req, res) => {
     writeJson(res, 404, { message: "Not found" }, req);
   } catch (error) {
     console.error(error);
-    writeJson(res, 500, {
-      message: error instanceof Error ? error.message : "Internal server error",
-    }, req);
+    writeJson(
+      res,
+      500,
+      {
+        message:
+          error instanceof Error ? error.message : "Internal server error",
+      },
+      req,
+    );
   }
 };
 

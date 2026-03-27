@@ -3,6 +3,12 @@
   "buildCommand": "yarn cloud:prisma:generate && yarn build",
   "outputDirectory": "excalidraw-app/build",
   "framework": "vite",
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "/api/[...path]"
+    }
+  ],
   "functions": {
     "api/[...path].js": {
       "maxDuration": 60
